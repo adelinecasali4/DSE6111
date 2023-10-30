@@ -1,0 +1,269 @@
+---
+title: 'DSE6111: Week One Exercises'
+author: "Adeline Casali"
+date: "2023-10-25"
+output: word_document
+---
+
+# Problem 8
+a) Read in the dataset
+```{r}
+college <- read.csv("Week_One/Data/college.csv")
+```
+b) Create a row.names column with the name of each university and remove the column where the university names were originally stored
+```{r}
+rownames(college) <- college[, 1]
+head(college)
+college <-  college[,-1]
+head(college)
+```
+c) 
+i. Numerical summary of the variables in the dataset
+```{r}
+summary(college)
+```
+ii. Scatterplot matrix of the first ten numeric columns of the data
+```{r}
+pairs(college[, 1:10][, sapply(college[, 1:10], is.numeric)], col = c("red", "blue", "green", "orange", "purple", "pink", "cyan", "brown", "black", "gray"))
+```
+iii. Boxplots of Outstate vs Private colleges
+```{r}
+boxplot(Outstate ~ Private, data = college, xlab = "Private", ylab = "Outstate", main = "Boxplot of Outstate vs Private")
+```
+iv. Creation of the Elite variable and boxplot depicting outstate vs elite colleges
+```{r}
+Elite <- rep("No", nrow(college))
+Elite[college$Top10perc > 50] <- "Yes"
+Elite <- as.factor(Elite)
+college <- data.frame(college, Elite)
+summary(college)
+boxplot(Outstate ~ Elite, data = college, xlab = "Elite", ylab = "Outstate", main = "Boxplot of Outstate vs Elite")
+```
+v. Histograms of graduation rate, room and board, out of state tuition, and number of applications
+```{r}
+par(mfrow = c(2, 2))
+hist(college$Grad.Rate, breaks = 10, main = "Grad.Rate Histogram", xlab = "Grad.Rate")
+hist(college$Room.Board, breaks = 20, main = "Room.Board Histogram", xlab = "Room.Board")
+hist(college$Outstate, breaks = 15, main = "Outstate Histogram", xlab = "Outstate")
+hist(college$Apps, breaks = 30, main = "Apps Histogram", xlab = "Apps")
+```
+vi. I created two new columns; the first calculated the percentage of applicants who were accepted, and the second calculated the percentage of those accepted who enrolled. I then produced a histogram of each new variable and discovered that most colleges have a high admittance rate (around 80%), but the majority of colleges have less than 40% of accepted students actually enroll. 
+```{r}
+college$Percent_Apps_Accepted <- (college$Accept / college$Apps) * 100
+college$Percent_Accept_Enroll <- (college$Enroll / college$Accept) * 100
+par(mfrow = c(1, 2))
+hist(college$Percent_Apps_Accepted, breaks = 20, main = "Percent of Apps Accepted", xlab = "Percentage")
+hist(college$Percent_Accept_Enroll, breaks = 20, main = "Percent of Accept Who Enroll", xlab = "Percentage")
+```
+
+
+# Problem 9
+Read in dataset and check for and remove NA values
+```{r}
+auto <- read.csv("Week_One/Data/Auto.csv", na.strings = "?")
+colMeans(is.na(auto))
+auto <- na.omit(auto)
+colMeans(is.na(auto))
+```
+a) From looking at the data, the only column that is clearly qualitative is name. However, cylinders, year, and origin are also qualitative predictors as they have a set number of categorical variables within them. The remaining variables (mpg, displacement, horsepower, weight, and acceleration) are all quantitative variables. 
+```{r}
+head(auto)
+```
+b) Calculating the range of each quantitative predictor
+```{r}
+cat("The range of mpg is", range(auto$mpg), "\n")
+cat("The range of displacement is", range(auto$displacement), "\n")
+cat("The range of horsepower is", range(auto$horsepower), "\n")
+cat("The range of weight is", range(auto$weight), "\n")
+cat("The range of acceleration is", range(auto$acceleration), "\n")
+```
+c) Calculating the mean and standard deviation of each quantitative predictor
+```{r}
+cat("The mean of mpg is", mean(auto$mpg), "and the standard deviation is", sd(auto$mpg), "\n")
+cat("The mean of displacement is", mean(auto$displacement), "and the standard deviation is", sd(auto$displacement), "\n")
+cat("The mean of horsepower is", mean(auto$horsepower), "and the standard deviation is", sd(auto$horsepower), "\n")
+cat("The mean of weight is", mean(auto$weight), "and the standard deviation is", sd(auto$weight), "\n")
+cat("The mean of acceleration is", mean(auto$acceleration), "and the standard deviation is", sd(auto$acceleration), "\n")
+```
+d) Removing the 10th through 85th observations and re-calculating the range, mean, and standard deviation of each qualitative predictor. 
+```{r}
+auto_subset <- auto[-(10:85), ]
+cat("The mean of mpg is", mean(auto_subset$mpg), ", the standard deviation is", sd(auto_subset$mpg), ", and the range is", range(auto_subset$mpg), "\n")
+cat("The mean of displacement is", mean(auto_subset$displacement), ", the standard deviation is", sd(auto_subset$displacement), ", and the range is", range(auto_subset$displacement), "\n")
+cat("The mean of horsepower is", mean(auto_subset$horsepower), ", the standard deviation is", sd(auto_subset$horsepower), ", and the range is", range(auto_subset$horsepower), "\n")
+cat("The mean of weight is", mean(auto_subset$weight), ", the standard deviation is", sd(auto_subset$weight), ", and the range is", range(auto_subset$weight), "\n")
+cat("The mean of acceleration is", mean(auto_subset$acceleration), ", the standard deviation is", sd(auto_subset$acceleration), ", and the range is", range(auto_subset$acceleration), "\n")
+```
+e) Plot 1: Scatterplot of mpg vs Horsepower - there seems to be a negative linear relationship between the mpg and horsepower of cars in the auto dataset
+Plot 2: Scatterplot of weight vs Acceleration - there is a slight negative linear relationship between the weight and acceleration predictors
+Plot 3: Barplot of Cylinders vs Acceleration - the plot shows an inverted u pattern
+Plot 4: Plot of Year vs Displacement - the plot shows a decrease in displacement over car years (negative linear relationship)
+```{r}
+plot(auto$mpg, auto$horsepower, xlab = "Miles Per Gallon (mpg)", ylab = "Horsepower", main = "Scatterplot of mpg vs. Horsepower")
+abline(lm(auto$horsepower ~ auto$mpg), col = "red")
+
+plot(auto$weight, auto$acceleration, xlab = "Weight", ylab = "Acceleration", main = "Scatterplot of Weight vs. Acceleration")
+abline(lm(auto$acceleration ~ auto$weight), col = "blue")
+
+plot(auto$cylinders, auto$acceleration, xlab = "Cylinders", ylab = "Acceleration", main = "Boxplot of Cylinders vs. Acceleration")
+
+plot(auto$year, auto$displacement, xlab = "Year", ylab = "Displacement", main = "Plot of Year vs. Displacement")
+abline(lm(auto$displacement ~ auto$year), col = "green")
+```
+f) According to the plots produced below, there looks to be a negative linear relationship between displacement, horsepower, and weight and mpg. Additionally, there looks to be a weak positive linear relationship between acceleration and mpg as well as a stronger positive linear relationship between year and origin and mpg. 
+```{r}
+# Plot 1: Boxplot of Cylinders vs. MPG
+plot(auto$cylinders, auto$mpg, xlab = "Cylinders", ylab = "Miles per Gallon (mpg)", main = "Boxplot of Cylinders vs. MPG")
+
+# Plot 2: MPG vs. Displacement
+plot(auto$mpg, auto$displacement, xlab = "Miles per Gallon (mpg)", ylab = "Displacement", main = "MPG vs. Displacement")
+abline(lm(auto$displacement ~ auto$mpg), col = "red")
+
+# Plot 3: MPG vs. Horsepower
+plot(auto$mpg, auto$horsepower, xlab = "Miles per Gallon (mpg)", ylab = "Horsepower", main = "MPG vs. Horsepower")
+abline(lm(auto$horsepower ~ auto$mpg), col = "red")
+
+# Plot 4: MPG vs. Weight
+plot(auto$mpg, auto$weight, xlab = "Miles per Gallon (mpg)", ylab = "Weight", main = "MPG vs. Weight")
+abline(lm(auto$weight ~ auto$mpg), col = "red")
+
+# Plot 5: MPG vs. Acceleration
+plot(auto$mpg, auto$acceleration, xlab = "Miles per Gallon (mpg)", ylab = "Acceleration", main = "MPG vs. Acceleration")
+abline(lm(auto$acceleration ~ auto$mpg), col = "red")
+
+# Plot 6: Year vs. MPG
+plot(auto$year, auto$mpg, xlab = "Year", ylab = "Miles per Gallon (mpg)", main = "Year vs. MPG")
+abline(lm(auto$mpg ~ auto$year), col = "red")
+
+# Plot 7: Origin vs. MPG
+plot(auto$origin, auto$mpg, xlab = "Origin", ylab = "Miles per Gallon (mpg)", main = "Origin vs. MPG")
+abline(lm(auto$mpg ~ auto$origin), col = "red")
+```
+
+
+# Problem 10
+a) Load dataset and check its structure and components. It has 506 rows and 14 columns. Each row represents a suburb in the Boston area and the columns represent different housing values pertaining to that suburb - for example, per capita crime rate, the median value of homes, and the tax rate, among others. 
+```{r}
+library(MASS)
+?Boston
+str(Boston)
+```
+b) There seems to be a weak positive linear relationship between the pupil-teacher ratio and the crime rate per capita, with the highest crime rates occurring around a 20:1 ratio. Additionally, there is a strong positive linear correlation between the proportion of non-retail business acres and the nitrogen oxide concentration. Finally, there is a weak negative linear correlation between the proportion of units built prior to 1940 and the median value of homes. 
+```{r}
+plot(Boston$ptratio, Boston$crim, xlab = "Pupil-teacher ratio", ylab = "Per capita crime rate", main = "Pupil-teacher ratio vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$ptratio), col = "red")
+
+plot(Boston$indus, Boston$nox, xlab = "Proportion of non-retail business acres", ylab = "Nox concentration (parts per 10 million)", main = "Non-retail business acres vs. Nitrogen oxide concentration")
+abline(lm(Boston$nox ~ Boston$indus), col = "blue")
+
+plot(Boston$age, Boston$medv, xlab = "Proportion of owner-occupied units built prior to 1940", ylab = "Median value of homes in $1000s", main = "Units built prior to 1940 vs. Median value of homes")
+abline(lm(Boston$medv ~ Boston$age), col = "green")
+```
+c) There are weak positive linear relationships between the number of non-retail business acres, the proportion of units built prior to 1940, accessibility to highways, property tax rate, pupil teacher ratio, and lower status of the population when compared with the crime rate per capita. There are weak negative linear relationships between the number of large residential lands, the number of rooms per dwelling, distance to employment centers, proportion of blacks, and median value of homes when compared to the crime rate per capita. Additionally, the towns with the highest crime rates appeared to be off of the Charles River. 
+```{r}
+# Plot 1: Large lot residential lands
+plot(Boston$zn, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Residential land zoned for lots >25000 sq.ft",
+     main = "Large lot residential lands vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$zn), col = "red")
+
+# Plot 2: Non-retail business acres
+plot(Boston$indus, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Non-retail business acres",
+     main = "Non-retail business acres vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$indus), col = "red")
+
+# Boxplot for Crime Rates by Charles River Location
+boxplot(crim ~ chas, data = Boston, names = c("Not on Charles River", "On Charles River"),
+        ylab = "Per Capita Crime Rate",
+        xlab = "Location on Charles River",
+        main = "Crime Rates by Charles River Location")
+
+# Plot 3: Number of rooms per dwelling
+plot(Boston$rm, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Avg number of rooms per dwelling",
+     main = "Number of rooms per dwelling vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$rm), col = "red")
+
+# Plot 4: Proportion of units built prior to 1940
+plot(Boston$age, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Proportion of units built prior to 1940",
+     main = "Units built prior to 1940 vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$age), col = "red")
+
+# Plot 5: Mean distances to employment centres
+plot(Boston$dis, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Mean distances to employment centres",
+     main = "Distances to employment centres vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$dis), col = "red")
+
+# Plot 6: Accessibility to radial highways
+plot(Boston$rad, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Accessibility to radial highways",
+     main = "Accessibility to radial highways vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$rad), col = "red")
+
+# Plot 7: Property-tax rate per $10,000
+plot(Boston$tax, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Property-tax rate per $10,000",
+     main = "Property-tax rate vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$tax), col = "red")
+
+# Plot 8: Pupil-teacher ratio
+plot(Boston$ptratio, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Pupil-teacher ratio",
+     main = "Pupil-teacher ratio vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$ptratio), col = "red")
+
+# Plot 9: Proportion of blacks
+plot(Boston$black, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Proportion of blacks",
+     main = "Proportion of blacks vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$black), col = "red")
+
+# Plot 10: Lower status of the population
+plot(Boston$lstat, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Lower status of the population",
+     main = "Lower status of the population vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$lstat), col = "red")
+
+# Plot 11: Median value of homes in $1000s
+plot(Boston$medv, Boston$crim, ylab = "Per capita crime rate", 
+     xlab = "Median value of homes in $1000s",
+     main = "Median value of homes vs. Per capita crime rate")
+abline(lm(Boston$crim ~ Boston$medv), col = "red")
+```
+d) There are a wide range of values for each predictor, all listed below. Some of the most notable ranges are the crime rate per capita, which ranges from 0.00632 to 88.9762, the proportion of buildings built prior to 1940 which ranges from 2.9 to 100, and the pupil-teacher ratios which ranges from 12.6 to 22. 
+```{r}
+# Calculate and print the range of each column
+for (col_name in names(Boston)) {
+  col_range <- range(Boston[[col_name]], na.rm = TRUE)
+  cat(paste("Range of", col_name, ":", col_range[1], "to", col_range[2], "\n"))
+}
+```
+e) 35 of the suburbs in this dataset are located on the Charles River. 
+```{r}
+cat("Number of towns on the Charles River: ", sum(Boston$chas == 1), "\n")
+
+barplot(table(Boston$chas), 
+        names.arg = c("Not on Charles River", "On Charles River"),
+        xlab = "Charles River",
+        ylab = "Frequency",
+        main = "Frequency of 'On the Charles River'")
+```
+f) The median pupil-teacher ratio for the towns located in this dataset is 19.05. 
+```{r}
+cat("Median Student-Teacher Ratio: ", median(Boston$ptratio), "\n")
+```
+g) There are two towns that have the lowest median value of owner-occupied homes, at $5000. They both have relatively high crime rates, levels of industry, levels of nitrogen oxides, accessibility to highways, and tax rates. Additionally, they both have some of the highest proportions of old houses, lower status populations, and blacks in the dataset. They are both not located on the Charles River. 
+```{r}
+cat("Suburb with the lowest median value of owner-occupied homes (in 1000s):", min(Boston$medv), "\n")
+print(Boston[Boston$medv == 5, ])
+```
+h) The suburbs that average more than 8 rooms per dwelling tend to have low crime rates, industrialization, and nitrogen oxides. They tend to have higher proportions of old houses (minus one outlier) and median incomes. 
+```{r}
+cat("Number of suburbs with more than 7 rooms per dwelling: ", nrow(Boston[Boston$rm > 7, ]), "\n")
+cat("Number of suburbs with more than 8 rooms per dwelling: ", nrow(Boston[Boston$rm > 8, ]), "\n")
+print(Boston[Boston$rm > 8, ])
+```
+
