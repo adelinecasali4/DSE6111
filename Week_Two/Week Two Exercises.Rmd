@@ -1,0 +1,144 @@
+---
+title: "Week Two Exercises"
+author: "Adeline Casali"
+date: "2023-11-01"
+output: word_document
+---
+# Question 9
+Loading packages that contain the dataset used
+```{r}
+library(ISLR)
+```
+a) Produce a scatterplot matrix of all variables. 
+```{r}
+pairs(Auto)
+```
+b) Compute a matrix of correlations between all quantitative variables. 
+```{r}
+Auto_correlation_matrix <- cor(Auto[, -9])
+print(Auto_correlation_matrix)
+```
+c) Perform a multiple linear regression with mpg. 
+i. There does seem to be a relationship between the predictors and the response. This is shown by the F-statistic's extremely low p-value of <2.2e-16, suggesting that at least one of the predictors has a statistically significant impact on the response variable, mpg. 
+ii. Displacement, weight, year, and origin all appear to have a statistically significant relationship to the response variable as they all have p-values less than 0.05. 
+iii. The coefficient for the year variable, 0.750773, suggests that for each 1 year increase in the manufacturing year of the car, the expected change in mpg is an increase of approximately 0.751, holding all other predictors constant. This means that newer cars tend to have higher mpg values, and this effect is statistically significant as indicated by the p-value. 
+```{r}
+mpg_lmodel <- lm(mpg ~ . - name, data = Auto)
+summary(mpg_lmodel)
+```
+d) When looking at the residuals plot, the residuals seem to be fairly evenly distributed with no clear pattern, which suggests linearity. However, the Q-Q residuals plot does show some deviation at its highest point, suggesting some skewness or outliers in the residuals. The scale-location plot shows minor funneling, which indicates some heteroscedasticity, suggesting that the variance of residuals is not constant. Finally, the residuals vs leverage plot does indicate a few observations with high leverage, with one observation having particularly high leverage. 
+```{r}
+par(mfrow=c(2,2))
+plot(mpg_lmodel)
+```
+e) The interactions between displacement and year, acceleration and year, and acceleration and origin appear to be statistically significant, as indicated by their p-values of less than 0.05. 
+```{r}
+mpg_lmodel_interactions <- lm(mpg ~ (cylinders + displacement + horsepower + weight + acceleration + year + origin)^2, data = Auto)
+summary(mpg_lmodel_interactions)
+```
+f) After transformation, displacement, horsepower, and acceleration all show a statistically significant relationship with mpg, as shown by p-values less than 0.05. All three of those variables were not considered statistically significant in the original linear regression model, which indicates the impact that transformations can have. 
+```{r}
+# Make plots of all numeric variables vs mpg to check for linearity. 
+variables_to_plot <- setdiff(names(Auto), c("name", "mpg"))
+
+for (variable in variables_to_plot) {
+  plot(Auto$mpg, Auto[, variable], xlab = "mpg", ylab = variable, main = paste("Scatterplot of", variable, "vs. mpg"))
+abline(lm(Auto[, variable] ~ Auto$mpg), col = "red")
+}
+
+# Create a new linear model with transformations
+mpg_lmodel_transformed <- lm(mpg ~ cylinders + I(displacement^2) + log(horsepower) + weight + sqrt(acceleration) + year + origin, data = Auto)
+summary(mpg_lmodel_transformed)
+```
+
+
+# Question 10
+a) Producing a multiple regression model to predict Sales using Price, Urban, and US. 
+```{r}
+sales_lmodel <- lm(Sales ~ Price + Urban + US, data = Carseats)
+```
+b) The model indicates that with every one-unit increase in price, sales are expected to decrease by 0.054459, and this effect is statistically significant. When located in an urban area, sales are expected to decrease by 0.021916, but this is not statistically significant as indicated by the high p-value. Finally, when in the US sales are expected to increase by 1.200573, and this is considered a statistically significant relationship. 
+```{r}
+summary(sales_lmodel)
+```
+c) The model in equation form is written as: Sales = 13.043469 - 0.054459 * Price - 0.021916 * UrbanYes + 1.200573 * USYes
+
+d) You can reject the null hypothesis for the predictors Price and US as they have a p-value of less than 0.05, indicating a statistically significant effect on Sales. 
+
+e) Producing an updated model without the Urban predictor.
+```{r}
+sales_lmodel_updated <- lm(Sales ~ Price + US, data = Carseats)
+summary(sales_lmodel_updated)
+```
+f) Both models have a highly significant F-statistic, as indicated by their low p-values, but the second model does contain a higher F-statistic value. However, when looking at the adjusted r-squared values for each model, the updated regression model has a higher value of 0.2354 compared to 0.2335 in the original model. Both models have the same multiple r-squared value of 0.2393, indicating that 23.93% of the variance in sales is explained by the predictors in this model. Finally, the residual standard error was reduced from 2.472 on 396 degrees of freedom to 2.469 on 397 degrees of freedom in the second model, suggesting a slight decrease in error. 
+
+g) The 95% confidence interval for Price is -0.06475984 to -0.04419543, and the 95% confidence interval for US is much wider at 0.69151957 to 1.70776632. 
+```{r}
+confint(sales_lmodel_updated)
+```
+h) As seen in the plots, there does seem to be evidence of a point with high leverage, seen in the far right of the residuals vs leverage plot. However, there does not appear to be evidence of any outliers on any of the other plots.
+```{r}
+par(mfrow = c(2, 2))
+plot(sales_lmodel_updated)
+```
+
+
+# Question 14
+a) The linear model can be written as: y = B0 + B1*x1 + B2*x2 + e
+In this model, the regression coefficients are: B0 = 2 (intercept), B1 = 2 (coefficient for x1), and B2 = 0.3 (coefficient for x2)
+```{r}
+set.seed(1)
+x1=runif(100)
+x2=0.5*x1+rnorm(100)/10
+y=2+2*x1+0.3*x2+rnorm(100)
+```
+b) The correlation between x1 and x2 is relatively high at 0.84. This is evident in the graph below. 
+```{r}
+x1_x2_cor <- cor(x1, x2)
+plot(x1, x2, main = "Scatterplot of x1 vs. x2", xlab = "x1", ylab = "x2")
+text(0.2, 0.5, paste("Correlation:", round(x1_x2_cor, 2)))
+```
+c) In this linear model, B0 = 2.13, B1 = 1.44, and B2 = 1.01. Although B0 is very close to the true B0 of 2, B1 and B2 are quite different from their true values of 2 and 0.3. According to the p-values produced by the model, we can reject the null hypothesis that B1 = 0, but we fail to reject the null hypothesis B2 = 0. 
+```{r}
+x1_x2_lmodel <- lm(y ~ x1 + x2)
+summary(x1_x2_lmodel)
+par(mfrow = c(2, 2))
+plot(x1_x2_lmodel)
+```
+d) According to the linear model containing just x1, we can reject the null hypothesis B1 = 0 due to the extremely low p-value. 
+```{r}
+x1_lmodel <- lm(y ~ x1)
+summary(x1_lmodel)
+par(mfrow = c(2, 2))
+plot(x1_lmodel)
+```
+e) According to the linear model containing just x2, we can reject the null hypothesis B1 = 0 due to the extremely low p-value. 
+```{r}
+x2_lmodel <- lm(y ~ x2)
+summary(x2_lmodel)
+par(mfrow = c(2, 2))
+plot(x2_lmodel)
+```
+f) The results obtained from the linear models produced in (c) through (e) do contradict eachother, as the linear model containing both variables shows a statistically significant relationship with x1 but not x2, and the models containing each variable individually shows a relationship with both. However, this is likely due to the collinearity between x1 and x2, as seen in the scatterplot above and the correlation value produced of 0.84. This can cause problems in the regression model because it can be difficult to separate out the responses of each individual variable on the response variable. 
+
+g) With the updated linear model containing both x1 and x2, we fail to reject the null hypothesis B1 = 0, but can reject the null hypothesis B2 = 0. This is the opposite of the original linear model. In the models containing just each individual predictor, we can still reject the null hypothesis B1 = 0 in both cases. This point appears to be both an outlier and a high leverage point as seen by the plots produced below. Each scatterplot clearly shows the point as an outlier, and the residuals vs leverage plots for each model produced show a point with high leverage that was not seen in the same plots for the models before the new observation was added. This indicates that the new observation is both an outlier and a high-leverage point. 
+```{r}
+x1 = c(x1, 0.1)
+x2 = c(x2, 0.8)
+y = c(y, 6)
+x1_x2_lmodel_updated <- lm(y ~ x1 + x2)
+summary(x1_x2_lmodel_updated)
+par(mfrow = c(2, 2))
+plot(x1_x2_lmodel_updated)
+x1_lmodel_updated <- lm(y ~ x1)
+summary(x1_lmodel_updated)
+par(mfrow = c(2, 2))
+plot(x1_lmodel_updated)
+x2_lmodel_updated <- lm(y ~ x2)
+summary(x2_lmodel_updated)
+par(mfrow = c(2, 2))
+plot(x2_lmodel_updated)
+plot(x1, y, main="Scatterplot of y vs. x1", xlab="x1", ylab="y")
+plot(x2, y, main="Scatterplot of y vs. x2", xlab="x2", ylab="y")
+plot(x1, x2, main="Scatterplot of x1 vs. x2", xlab="x1", ylab="x2")
+```
