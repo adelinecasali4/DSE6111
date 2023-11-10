@@ -1,0 +1,392 @@
+---
+title: "Week Three Exercises"
+author: "Adeline Casali"
+date: "2023-11-07"
+output: word_document
+---
+
+# Question 13
+Load packages
+```{r}
+library(ISLR2)
+library(MASS)
+library(e1071)
+library(class)
+```
+a) Below are some numerical and graphical summaries of the Weekly dataset. There do not seem to be any correlated variables, but there does seem to be an overall increase in the volume of trades over time. 
+```{r}
+names(Weekly)
+dim(Weekly)
+summary(Weekly)
+cor(Weekly[, -9])
+pairs(Weekly)
+attach(Weekly)
+plot(Volume)
+```
+b) According to the logistic regression model created below, only Lag2 is considered to have a statistically significant relationship with Direction. Lag1 is the second closest variable to being significant, with a p-value of 0.1181. 
+```{r}
+weekly_log <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Weekly, family = binomial)
+summary(weekly_log)
+```
+c) This matrix shows that the logistic regression model correctly predicts when the market goes down 54 times, and up 557 times. Up was incorrectly predicted 430 times (False positive, type I error), and down was incorrectly predicted 48 times (False negative, type II error). This equates to correctly predicting direction 611 times out of 1089, or a rate of 56.1%. This also means a training error rate of 43.9%. 
+```{r}
+weekly_probs_log <- predict(weekly_log, type = "response")
+weekly_pred_log <- rep("Down", 1089)
+weekly_pred_log[weekly_probs_log > 0.5] = "Up"
+table(weekly_pred_log, Direction)
+mean(weekly_pred_log == Direction)
+```
+d) The logistic regression model produced with only Lag2 correctly predicts the direction of the market 62.5% of the time with the test data, which equates to a test error rate of 37.5%. 
+```{r}
+weekly_train <- (Year < 2009)
+weekly_test <- Weekly[!weekly_train, ]
+dim(weekly_test)
+direction_test <- Direction[!weekly_train]
+weekly_log2 <- glm(Direction ~ Lag2, data  = Weekly, family = binomial, subset = weekly_train)
+weekly_probs_log2 <- predict(weekly_log2, weekly_test, type = "response")
+weekly_pred_log2 <- rep("Down", 104)
+weekly_pred_log2[weekly_probs_log2 > 0.5] = "Up"
+table(weekly_pred_log2, direction_test)
+mean(weekly_pred_log2 == direction_test)
+mean(weekly_pred_log2 != direction_test)
+```
+e) The LDA model produced with only Lag2 correctly predicts the direction of the market 62.5% of the time with the test data, which equates to a test error rate of 37.5%. 
+```{r}
+weekly_lda <- lda(Direction ~ Lag2, data = Weekly, subset = weekly_train)
+weekly_lda
+weekly_pred_lda <- predict(weekly_lda, weekly_test)
+names(weekly_pred_lda)
+weekly_lda_class <- weekly_pred_lda$class
+table(weekly_lda_class, direction_test)
+mean(weekly_lda_class == direction_test)
+mean(weekly_lda_class != direction_test)
+```
+f) The QDA model with only Lag2 correctly predicts the direction of the market 58.7% of the time with the test data, which equates to a test error rate of 41.3%. 
+```{r}
+weekly_qda <- qda(Direction ~ Lag2, data = Weekly, subset = weekly_train)
+weekly_qda
+weekly_qda_class <- predict(weekly_qda, weekly_test)$class
+table(weekly_qda_class, direction_test)
+mean(weekly_qda_class == direction_test)
+mean(weekly_qda_class != direction_test)
+```
+g) The KNN model with K = 1 produced with only Lag2 correctly predicts the direction of the market 50% of the time with the test data, which equates to a test error rate of 50%. 
+```{r}
+train <- (Weekly$Year < 2009)
+train.X <- as.matrix(cbind(Lag2 = Weekly$Lag2[train]))
+test.X <- as.matrix(cbind(Lag2 = Weekly$Lag2[!train]))
+train.Direction <- Weekly$Direction[train]
+test.Direction <- Weekly$Direction[!train]
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 1)
+table(knn.pred, test.Direction)
+mean(knn.pred == test.Direction)
+mean(knn.pred != test.Direction)
+```
+h) The naive Bayes model produced with only Lag2 correctly predicts the direction of the market 58.7% of the time with the test data, which equates to a test error rate of 41.3%. 
+```{r}
+weekly_nb <- naiveBayes(Direction ~ Lag2, data = Weekly, subset = weekly_train)
+weekly_nb
+weekly_nb_class <- predict(weekly_nb, direction_test)
+table(weekly_nb_class, direction_test)
+mean(weekly_nb_class == direction_test)
+mean(weekly_nb_class != direction_test)
+```
+i) Both the logistic regression and LDA methods appeared to provide the best results on this data, with accuracy rates of 62.5% each. 
+
+j) After experimenting with many different combinations of predictors and transformations, the methods that appear to provide the best results are the logistic regression and LDA methods with only the Lag2 predictor, with success results of 62.5% each. Adding in additional predictors and transformations only made for worse accuracy in all methods. Additionally, using K = 20 had the best results with the KNN method at 58.7%, which is still less than the logistic and LDA methods. 
+```{r}
+# KNN with K = 3
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 3)
+table(knn.pred, test.Direction)
+mean(knn.pred == test.Direction)
+mean(knn.pred != test.Direction)
+
+# KNN with K = 10
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 10)
+table(knn.pred, test.Direction)
+mean(knn.pred == test.Direction)
+mean(knn.pred != test.Direction)
+
+# KNN with K = 20
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 20)
+table(knn.pred, test.Direction)
+mean(knn.pred == test.Direction)
+mean(knn.pred != test.Direction)
+
+# KNN with K = 30
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 30)
+table(knn.pred, test.Direction)
+mean(knn.pred == test.Direction)
+mean(knn.pred != test.Direction)
+
+# Logistic regression with Lag1 and Lag2
+weekly_log3 <- glm(Direction ~ Lag1 + Lag2, data  = Weekly, family = binomial, subset = weekly_train)
+weekly_probs_log3 <- predict(weekly_log3, weekly_test, type = "response")
+weekly_pred_log3 <- rep("Down", 104)
+weekly_pred_log3[weekly_probs_log3 > 0.5] = "Up"
+table(weekly_pred_log3, direction_test)
+mean(weekly_pred_log3 == direction_test)
+mean(weekly_pred_log3 != direction_test)
+
+# Logistic regression with Lag1, Lag2, and Volume squared
+weekly_log3 <- glm(Direction ~ Lag1 + Lag2 + Volume^2, data  = Weekly, family = binomial, subset = weekly_train)
+weekly_probs_log3 <- predict(weekly_log3, weekly_test, type = "response")
+weekly_pred_log3 <- rep("Down", 104)
+weekly_pred_log3[weekly_probs_log3 > 0.5] = "Up"
+table(weekly_pred_log3, direction_test)
+mean(weekly_pred_log3 == direction_test)
+mean(weekly_pred_log3 != direction_test)
+
+# LDA with Lag1 and Lag2
+weekly_lda2 <- lda(Direction ~ Lag1 + Lag2, data = Weekly, subset = weekly_train)
+weekly_lda2
+weekly_pred_lda2 <- predict(weekly_lda2, weekly_test)
+names(weekly_pred_lda2)
+weekly_lda_class2 <- weekly_pred_lda2$class
+table(weekly_lda_class2, direction_test)
+mean(weekly_lda_class2 == direction_test)
+mean(weekly_lda_class2 != direction_test)
+
+# LDA with Lag1, Lag2, and Volume squared
+weekly_lda2 <- lda(Direction ~ Lag1 + Lag2 + Volume^2, data = Weekly, subset = weekly_train)
+weekly_lda2
+weekly_pred_lda2 <- predict(weekly_lda2, weekly_test)
+names(weekly_pred_lda2)
+weekly_lda_class2 <- weekly_pred_lda2$class
+table(weekly_lda_class2, direction_test)
+mean(weekly_lda_class2 == direction_test)
+mean(weekly_lda_class2 != direction_test)
+
+# QDA with Lag1 and Lag2
+weekly_qda2 <- qda(Direction ~ Lag1 + Lag2, data = Weekly, subset = weekly_train)
+weekly_qda2
+weekly_qda_class2 <- predict(weekly_qda2, weekly_test)$class
+table(weekly_qda_class2, direction_test)
+mean(weekly_qda_class2 == direction_test)
+mean(weekly_qda_class2 != direction_test)
+
+# QDA with Lag1, Lag2, and Volume squared
+weekly_qda2 <- qda(Direction ~ Lag1 + Lag2 + Volume^2, data = Weekly, subset = weekly_train)
+weekly_qda2
+weekly_qda_class2 <- predict(weekly_qda2, weekly_test)$class
+table(weekly_qda_class2, direction_test)
+mean(weekly_qda_class2 == direction_test)
+mean(weekly_qda_class2 != direction_test)
+
+# Naive Bayes with Lag1 and Lag2
+weekly_nb2 <- naiveBayes(Direction ~ Lag1 + Lag2, data = Weekly, subset = weekly_train)
+weekly_nb2
+weekly_nb_class2 <- predict(weekly_nb2, direction_test)
+table(weekly_nb_class2, direction_test)
+mean(weekly_nb_class2 == direction_test)
+mean(weekly_nb_class2 != direction_test)
+
+# Naive Bayes with Lag1, Lag2, and Volume squared
+weekly_nb2 <- naiveBayes(Direction ~ Lag1 + Lag2 + Volume^2, data = Weekly, subset = weekly_train)
+weekly_nb2
+weekly_nb_class2 <- predict(weekly_nb2, direction_test)
+table(weekly_nb_class2, direction_test)
+mean(weekly_nb_class2 == direction_test)
+mean(weekly_nb_class2 != direction_test)
+```
+
+
+# Question 16
+Exploring the dataset
+```{r}
+names(Boston)
+dim(Boston)
+summary(Boston)
+cor(Boston)
+pairs(Boston)
+```
+Creating a column denoting if a suburb is above or below the median crime rate.
+```{r}
+median_crim <- median(Boston$crim)
+Boston$med_crime <- ifelse(Boston$crim > median_crim, 1, 0)
+```
+According to this logistic regression containing all variables, the predictors zn, nox, dis, rad, tax, ptratio, black, and medv have a statistically significant relationship with whether or not a suburb is above the median crime rate. 
+```{r}
+boston_log <- glm(med_crime ~ zn + indus + chas + nox + rm + age + dis + rad + tax + ptratio + black + lstat + medv, data = Boston, family = binomial)
+summary(boston_log)
+```
+A logistic regression model with the predictors deemed statistically significant shows an accuracy of 93.6%, with an error of only 6.4%. 
+```{r}
+boston_train <- Boston[1:350, ]
+boston_test <- Boston[-(1:350), ]
+med_crime_test <- Boston$med_crime[-(1:350)]
+boston_log2 <- glm(med_crime ~ zn + nox + dis + rad + tax + ptratio + black + medv, data = boston_train, family = binomial)
+boston_probs_log2 <- predict(boston_log2, boston_test, type = "response")
+boston_pred_log2 <- rep(0, nrow(boston_test))
+boston_pred_log2[boston_probs_log2 > 0.5] = 1
+table(boston_pred_log2, med_crime_test)
+mean(boston_pred_log2 == med_crime_test)
+mean(boston_pred_log2 != med_crime_test)
+```
+An LDA model with the same predictors has an accuracy of 92.9% with an error of 7.1%. 
+```{r}
+boston_lda <- lda(med_crime ~ zn + nox + dis + rad + tax + ptratio + black + medv, data = boston_train)
+boston_lda
+boston_lda_class <- predict(boston_lda, boston_test)$class
+table(boston_lda_class, med_crime_test)
+mean(boston_lda_class == med_crime_test)
+mean(boston_lda_class != med_crime_test)
+```
+A QDA model with the same predictors has an accuracy of 13.5% with an error of 86.5%.
+```{r}
+boston_qda <- qda(med_crime ~ zn + nox + dis + rad + tax + ptratio + black + medv, data = boston_train)
+boston_qda
+boston_qda_class <- predict(boston_qda, boston_test)$class
+table(boston_qda_class, med_crime_test)
+mean(boston_qda_class == med_crime_test)
+mean(boston_qda_class != med_crime_test)
+```
+A naive Bayes model with the same predictors has an accuracy of 44.2% with an error of 55.8%.
+```{r}
+boston_nb <- naiveBayes(med_crime ~ zn + nox + dis + rad + tax + ptratio + black + medv, data = boston_train)
+boston_nb
+boston_nb_class <- predict(boston_nb, boston_test)
+table(boston_nb_class, med_crime_test)
+mean(boston_nb_class == med_crime_test)
+mean(boston_nb_class != med_crime_test)
+```
+A KNN with K = 20 and the same predictors has an accuracy of 94.9% with an error of 5.1%.
+```{r}
+predictors <- c("zn", "nox", "dis", "rad", "tax", "ptratio", "black", "medv")
+X <- Boston[, predictors]
+y <- Boston$med_crime
+train_indices <- 1:350
+X_train <- X[train_indices, ]
+y_train <- y[train_indices]
+test_indices <- (351:nrow(Boston))
+X_test <- X[test_indices, ]
+y_test <- y[test_indices]
+
+set.seed(1)
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 1)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 5)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 10)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 20)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 30)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+```
+A logistic regression model with only the four most significant predictors (nox, dis, rad, and ptratio) has an accuracy of 93.6% and an error of 6.4%. 
+```{r}
+boston_log3 <- glm(med_crime ~ nox + dis + rad + ptratio, data = boston_train, family = binomial)
+boston_probs_log3 <- predict(boston_log3, boston_test, type = "response")
+boston_pred_log3 <- rep(0, nrow(boston_test))
+boston_pred_log3[boston_probs_log3 > 0.5] = 1
+table(boston_pred_log3, med_crime_test)
+mean(boston_pred_log3 == med_crime_test)
+mean(boston_pred_log3 != med_crime_test)
+```
+An LDA model with only the four most significant predictors (nox, dis, rad, and ptratio) has an accuracy of 93.6% and an error of 6.4%. 
+```{r}
+boston_lda2 <- lda(med_crime ~ nox + dis + rad + ptratio, data = boston_train)
+boston_lda2
+boston_lda_class2 <- predict(boston_lda2, boston_test)$class
+table(boston_lda_class2, med_crime_test)
+mean(boston_lda_class2 == med_crime_test)
+mean(boston_lda_class2 != med_crime_test)
+```
+A QDA model with only the four most significant predictors (nox, dis, rad, and ptratio) has an accuracy of 5.8% and an error of 94.2%. 
+```{r}
+boston_qda2 <- qda(med_crime ~ nox + dis + rad + ptratio, data = boston_train)
+boston_qda2
+boston_qda_class2 <- predict(boston_qda2, boston_test)$class
+table(boston_qda_class2, med_crime_test)
+mean(boston_qda_class2 == med_crime_test)
+mean(boston_qda_class2 != med_crime_test)
+```
+A naive Bayes model with only the four most significant predictors (nox, dis, rad, and ptratio) has an accuracy of 10.9% and an error of 89.1%. 
+```{r}
+boston_nb <- naiveBayes(med_crime ~ nox + dis + rad + ptratio, data = boston_train)
+boston_nb
+boston_nb_class <- predict(boston_nb, boston_test)
+table(boston_nb_class, med_crime_test)
+mean(boston_nb_class == med_crime_test)
+mean(boston_nb_class != med_crime_test)
+```
+A KNN with K = 5 or K = 10 with only the four most significant predictors (nox, dis, rad, and ptratio) has an accuracy of 94.9% and an error of 5.1%. 
+```{r}
+predictors <- c("nox", "dis", "rad", "ptratio")
+X <- Boston[, predictors]
+y <- Boston$med_crime
+train_indices <- 1:350
+X_train <- X[train_indices, ]
+y_train <- y[train_indices]
+test_indices <- (351:nrow(Boston))
+X_test <- X[test_indices, ]
+y_test <- y[test_indices]
+
+set.seed(1)
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 1)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 5)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 10)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 20)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+
+boston_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 30)
+table(boston_knn, y_test)
+mean(boston_knn == med_crime_test)
+mean(boston_knn != med_crime_test)
+```
+In summary, the most accurate classification model was created with the KNN method, with an accuracy of 94.9%. This accuracy was achieved with all significant predictors and K = 20 with just the four most significant predictors and K = 5 or K = 10. 
+```{r}
+methods_table_all_sig_predictors <- data.frame(
+  Method = c("Logistic", "LDA", "QDA", "Naive Bayes", "KNN (K = 20)"),
+  Accuracy = c("93.6%", "92.9%", "13.5%", "44.2%", "94.9%"),
+  Error = c("6.4%", "7.1%", "86.5%", "55.8%", "5.1%")
+)
+title1 <- "All Significant Predictors"
+cat(title1, "\n")
+print(methods_table_all_sig_predictors)
+
+methods_table_four_predictors <- data.frame(
+  Method = c("Logistic", "LDA", "QDA", "Naive Bayes", "KNN (K = 5 or 10)"),
+  Accuracy = c("93.6%", "93.6%", "5.8%", "10.9%", "94.9%"),
+  Error = c("6.4%", "6.4%", "94.1%", "89.1%", "5.1%")
+)
+title2 <- "Four Most Significant Predictors"
+cat(title2, "\n")
+print(methods_table_four_predictors)
+```
+
