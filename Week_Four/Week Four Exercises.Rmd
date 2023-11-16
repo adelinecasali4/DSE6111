@@ -10,7 +10,7 @@ Load packages and Data
 ```{r}
 library(ISLR2)
 library(boot)
-Default <- read.csv("Default.csv")
+Default <- read.csv("Week_Four/Default.csv")
 ```
 
 a) Using glm() standard error for income was estimated to be 1.274e-07 and the standard error for balance was estimated to be 3.514e-06. 
