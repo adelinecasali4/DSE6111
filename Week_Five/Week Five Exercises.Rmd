@@ -1,0 +1,216 @@
+---
+title: "Week 5 Exercises"
+author: "Adeline Casali"
+date: "2023-11-21"
+output: word_document
+---
+# Question 9
+Load packages
+```{r}
+library(ISLR2)
+library(glmnet)
+library(pls)
+library(leaps)
+```
+a) Split the dataset randomly with 50% in a training set and 50% in a test set. 
+```{r}
+sum(is.na(College$Apps))
+set.seed(123)
+training_indices <- sample(1:nrow(College), 0.5 * nrow(College))
+train <- College[training_indices, ]
+test <- College[-training_indices, ]
+```
+b) Linear model predicting the number of applications based on all variables in the College dataset. The MSE was calculated as 1373995. 
+```{r}
+lm_model <- lm(Apps ~ ., data = train)
+predictions <- predict(lm_model, newdata = test)
+cat("Test Error (MSE):", mean((test$Apps - predictions)^2), "\n")
+```
+c) Here is the model using ridge regression. The MSE is 2090325. 
+```{r}
+set.seed(123)
+train_mat <- model.matrix(Apps~., data = train)
+test_mat <- model.matrix(Apps~., data = test)
+cv.out <- cv.glmnet(train_mat, train$Apps, alpha = 0)
+bestlam <- cv.out$lambda.min
+cat("Chosen lambda value:", bestlam, "\n")
+ridge_mod <- glmnet(train_mat, train$Apps, alpha = 0)
+ridge_pred <- predict(ridge_mod, s = bestlam, newx = test_mat)
+cat("Test Error (MSE):", mean((ridge_pred - test$Apps)^2), "\n")
+```
+d) Here is the model using the lasso method. The MSE is 1391022. 
+```{r}
+set.seed(123)
+cv.out2 <- cv.glmnet(train_mat, train$Apps, alpha = 1)
+bestlam2 <- cv.out2$lambda.min
+cat("Chosen lambda value:", bestlam2, "\n")
+lasso_mod <- glmnet(train_mat, train$Apps, alpha = 1)
+lasso_pred <- predict(lasso_mod, s = bestlam2, newx = test_mat)
+cat("Test Error (MSE):", mean((lasso_pred - test$Apps)^2), "\n")
+```
+e) Here is the model using PCR. The MSE is 2887472. 
+```{r}
+set.seed(123)
+pcr_fit <- pcr(Apps~., data = train, scale = TRUE, validation = "CV")
+validationplot(pcr_fit, val.type = "MSEP")
+# 10 variables seems to have the lowest MSEP. It doesn't get much lower after that 
+summary(pcr_fit)
+pcr_pred <- predict(pcr_fit, test, ncomp = 10)
+cat("Test Error (MSE):", mean((pcr_pred - test$Apps)^2), "\n")
+```
+f) Here is the model using PLS. The MSE is 1389525. 
+```{r}
+set.seed(123)
+pls_fit = plsr(Apps~., data = train, scale = TRUE, validation = "CV")
+validationplot(pls_fit, val.type = "MSEP")
+# 8 variables seems to have the lowest MSEP. It doesn't get much lower after that 
+summary(pls_fit)
+pls_pred = predict(pls_fit, test, ncomp = 8)
+cat("Test Error (MSE):", mean((pls_pred - test$Apps)^2), "\n")
+```
+g) The method with the lowest MSE is the Linear Model, followed closely by PLS and Lasso. Ridge Regression and PCR had the highest MSE values, but were still relatively accurate. The R-squared value of the linear model is 0.9289, indicating that 92.89% of the variance in Apps can be explained using this model. 
+```{r}
+methods <- c("Linear Model", "Ridge Regression", "Lasso", "PCR", "PLS")
+mse_values <- c(1373995, 2090325, 1391022, 2887472, 1389525)
+results_df <- data.frame(Method = methods, `Test Error (MSE)` = mse_values)
+results_df
+
+TSS <- sum((mean(test$Apps) - test$Apps)^2)
+TSR <- sum((predictions - test$Apps)^2)
+cat("R-squared for the best model (linear):", 1 - (TSR)/(TSS), "\n")
+```
+
+
+# Question 11
+a) I created a linear model, ridge regression model, lasso model, PCR model, and PLS model. 
+```{r}
+# Creating a training and test set
+sum(is.na(Boston$crim))
+set.seed(123)
+training_indices2 <- sample(1:nrow(Boston), 0.5 * nrow(Boston))
+train2 <- Boston[training_indices2, ]
+test2 <- Boston[-training_indices2, ]
+
+# Creating and evaluating a linear model
+lm_model2 <- lm(crim ~ ., data = train2)
+predictions2 <- predict(lm_model2, newdata = test2)
+cat("Test Error (MSE):", mean((test2$crim - predictions2)^2), "\n")
+
+TSS2 <- sum((mean(test2$crim) - test2$crim)^2)
+TSR_lm <- sum((predictions2 - test2$crim)^2)
+cat("R-squared for the linear model:", 1 - (TSR_lm)/(TSS2), "\n")
+
+# Creating and evaluating a Ridge Regression model
+set.seed(123)
+train_mat2 <- model.matrix(crim~., data = train2)
+test_mat2 <- model.matrix(crim~., data = test2)
+cv.out3 <- cv.glmnet(train_mat2, train2$crim, alpha = 0)
+bestlam3 <- cv.out3$lambda.min
+ridge_mod2 <- glmnet(train_mat2, train2$crim, alpha = 0)
+ridge_pred2 <- predict(ridge_mod2, s = bestlam3, newx = test_mat2)
+cat("Test Error (MSE):", mean((ridge_pred2 - test2$crim)^2), "\n")
+
+TSR_rr <- sum((ridge_pred2 - test2$crim)^2)
+cat("R-squared for the Ridge Regression model:", 1 - (TSR_rr)/(TSS2), "\n")
+
+# Creating and evaluating Lasso model
+set.seed(123)
+cv.out4 <- cv.glmnet(train_mat2, train2$crim, alpha = 1)
+bestlam4 <- cv.out4$lambda.min
+lasso_mod2 <- glmnet(train_mat2, train2$crim, alpha = 1)
+lasso_pred2 <- predict(lasso_mod2, s = bestlam4, newx = test_mat2)
+cat("Test Error (MSE):", mean((lasso_pred2 - test2$crim)^2), "\n")
+
+TSR_l <- sum((lasso_pred2 - test2$crim)^2)
+cat("R-squared for the Lasso model:", 1 - (TSR_l)/(TSS2), "\n")
+
+# Creating and evaluating PCR model
+set.seed(123)
+pcr_fit2 <- pcr(crim~., data = train2, scale = TRUE, validation = "CV")
+validationplot(pcr_fit2, val.type = "MSEP")
+summary(pcr_fit2)
+pcr_pred2 <- predict(pcr_fit2, test2, ncomp = 9)
+cat("Test Error (MSE):", mean((pcr_pred2 - test2$crim)^2), "\n")
+
+TSR_pcr <- sum((pcr_pred2 - test2$crim)^2)
+cat("R-squared for the PCR model:", 1 - (TSR_pcr)/(TSS2), "\n")
+
+# Creating and evaluating PLS model
+set.seed(123)
+pls_fit2 <- plsr(crim~., data = train2, scale = TRUE, validation = "CV")
+validationplot(pls_fit2, val.type = "MSEP")
+summary(pls_fit2)
+pls_pred2 <- predict(pls_fit2, test2, ncomp = 6)
+cat("Test Error (MSE):", mean((pls_pred2 - test2$crim)^2), "\n")
+
+TSR_pls <- sum((pls_pred2 - test2$crim)^2)
+cat("R-squared for the PLS model:", 1 - (TSR_pls)/(TSS2), "\n")
+```
+b) Using test set error to validate the models, the model with the best fit (lowest MSE and highest R-squared value) is the linear model with an MSE of 51.5 and an r-squared value of 0.40. This is not perfect, as only 40% of the variation in the data can be explained by the model, but it was the best out of the 5 models explored. 
+```{r}
+model_results <- data.frame(
+  Model = c("Linear Model", "Ridge Regression", "Lasso Model", "PCR Model", "PLS Model"),
+  MSE = c(mean((test2$crim - predictions2)^2),
+          mean((ridge_pred2 - test2$crim)^2),
+          mean((lasso_pred2 - test2$crim)^2),
+          mean((pcr_pred2 - test2$crim)^2),
+          mean((pls_pred2 - test2$crim)^2)),
+  R_squared = c(1 - (TSR_lm)/(TSS2),
+                1 - (TSR_rr)/(TSS2),
+                1 - (TSR_l)/(TSS2),
+                1 - (TSR_pcr)/(TSS2),
+                1 - (TSR_pls)/(TSS2))
+)
+model_results
+```
+c) This model does involve all of the predictors, but it can be created without them. For example, using best subset selection, a linear model with only 2 predictors, rad and lstat, selected using best subset selection. This results in a better MSE of 53.77. However, it does result in a worse r-squared value of 0.37, which is to be expected as adding in predictors increases the r-squared value, regardless of how useful they actually are in predicting. 
+```{r}
+regfit_full <- regsubsets(crim ~ ., data = train2, nvmax = 13)
+reg_summary <- summary(regfit_full)
+
+# Display the results
+print(reg_summary)
+
+# Plot RSS, adjusted R2, Cp, and BIC
+par(mar = c(4, 4, 2, 2), mfrow = c(2, 2))
+plot(reg_summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+plot(reg_summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+
+# Identify the model with the largest adjusted R2 and plot a red dot
+best_adjr2_index <- which.max(reg_summary$adjr2)
+points(best_adjr2_index, reg_summary$adjr2[best_adjr2_index], col = "red", cex = 2, pch = 20)
+
+# Plot Cp and identify the model with the smallest Cp
+plot(reg_summary$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+best_cp_index <- which.min(reg_summary$cp)
+points(best_cp_index, reg_summary$cp[best_cp_index], col = "red", cex = 2, pch = 20)
+
+# Plot BIC and identify the model with the smallest BIC
+plot(reg_summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+best_bic_index <- which.min(reg_summary$bic)
+points(best_bic_index, reg_summary$bic[best_bic_index], col = "red", cex = 2, pch = 20)
+
+best_bic_index <- which.min(reg_summary$bic)
+
+# Extract coefficients for the best model
+best_model_coeffs <- coef(regfit_full, id = best_bic_index)
+
+# Exclude intercept
+best_model_coeffs <- best_model_coeffs[-1]
+
+# Display the number of variables and the variable names
+num_variables <- sum(best_model_coeffs != 0)
+variable_names <- names(best_model_coeffs[best_model_coeffs != 0])
+
+cat("Number of variables in the best model:", num_variables, "\n")
+cat("Variable names in the best model:", paste(variable_names, collapse = ", "), "\n")
+
+# Create the linear model with only the selected variables
+lm_model3 <- lm(crim ~ rad + lstat, data = train2)
+predictions3 <- predict(lm_model3, newdata = test2)
+cat("Test Error (MSE):", mean((test2$crim - predictions3)^2), "\n")
+
+TSR_lm2 <- sum((predictions3 - test2$crim)^2)
+cat("R-squared for the new linear model:", 1 - (TSR_lm2)/(TSS2), "\n")
+```
+
