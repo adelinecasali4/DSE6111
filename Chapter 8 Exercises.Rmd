@@ -1,0 +1,210 @@
+---
+title: "Chapter 8 Exercises"
+author: "Adeline Casali"
+date: "2023-11-30"
+output: word_document
+---
+# Question 8
+Load packages
+```{r}
+library(ISLR2)
+library(tree)
+library(randomForest)
+library(BART)
+library(gbm)
+library(pls)
+```
+a) I split the dataset into separate test and training sets
+```{r}
+set.seed(123)
+carseats_train <- sample(1:nrow(Carseats), nrow(Carseats) / 2)
+carseats_test <- Carseats[-carseats_train, "Sales"]
+```
+b) The MSE for the regression tree model is 4.395. 
+```{r}
+tree_carseats <- tree(Sales ~ ., Carseats, subset = carseats_train)
+summary(tree_carseats)
+plot(tree_carseats)
+text(tree_carseats, pretty = 0)
+yhat_carseats <- predict(tree_carseats, newdata = Carseats[-carseats_train, ])
+cat("MSE:", mean((yhat_carseats - carseats_test)^2), "\n")
+```
+c) The new MSE is 4.669, which is greater than the MSE before pruning. 
+```{r}
+cv_carseats <- cv.tree(tree_carseats)
+plot(cv_carseats$size, cv_carseats$dev, type = "b")
+# The best value is 6
+prune_carseats <- prune.tree(tree_carseats, best = 6)
+plot(prune_carseats)
+text(prune_carseats, pretty = 0)
+yhat_cv_carseats <- predict(prune_carseats, newdata = Carseats[-carseats_train, ])
+cat("MSE:", mean((yhat_cv_carseats - carseats_test)^2), "\n")
+```
+d) The MSE for the model utilizing bagging is much lower at 2.761. The most important variables are shelf location and price. 
+```{r}
+set.seed(123)
+bag_carseats <- randomForest(Sales ~ ., data = Carseats, subset = carseats_train, mtry = 10, importance = TRUE)
+bag_carseats
+yhat_bag_carseats <- predict(bag_carseats, newdata = Carseats[-carseats_train, ])
+importance(bag_carseats)
+varImpPlot(bag_carseats)
+cat("MSE:", mean((yhat_bag_carseats - carseats_test)^2), "\n")
+```
+e) With the random forests method, the MSE is slightly higher than with bagging at 3.017. This is still lower than the original MSE. The most important variables are still price and shelf location, although now price is considered slightly more important. I determined the optimal mtry (m) value by experimenting with different values. Typically, m is roughly equivalent to the sqrt of p (10), which in this case would make m = 3. However, a slightly higher value of 5 produced a lower MSE. 
+```{r}
+set.seed(123)
+rf_carseats <- randomForest(Sales ~ ., data = Carseats, subset = carseats_train, mtry = 5, importance = TRUE)
+yhat_rf_carseats <- predict(rf_carseats, newdata = Carseats[-carseats_train, ])
+cat("MSE:", mean((yhat_rf_carseats - carseats_test)^2), "\n")
+importance(rf_carseats)
+varImpPlot(rf_carseats)
+```
+f) The MSE for the BART method is significantly lower than with any of the other methods at 0.205. 
+```{r}
+x_carseats <- Carseats[, 1:11]
+y_carseats <- Carseats[, "Sales"]
+xtrain_carseats <- x_carseats[carseats_train, ]
+ytrain_carseats <- y_carseats[carseats_train]
+xtest_carseats <- x_carseats[-carseats_train, ]
+ytest_carseats <- y_carseats[-carseats_train]
+set.seed(123)
+bart_carseats <- gbart(xtrain_carseats, ytrain_carseats, x.test = xtest_carseats)
+yhat_bart_carseats <- bart_carseats$yhat.test.mean
+cat("MSE:", mean((ytest_carseats - yhat_bart_carseats)^2), "\n")
+```
+
+
+# Question 9
+a) I split the data into a training set containing 800 observations and a test set containing the remainder. 
+```{r}
+set.seed(123)
+oj_train <- sample(1:nrow(OJ), 800)
+oj_test <- OJ[-oj_train, "Purchase"]
+```
+b) In this model, the training error rate is 16.5% and the tree has 8 terminal nodes. 
+```{r}
+tree_oj <- tree(Purchase ~ ., OJ, subset = oj_train)
+summary(tree_oj)
+```
+c) One of the terminal nodes, number 6, shows that the split criteria is a price difference of < -0.39 and there are 27 observations in that branch. The deviance is 32.82 and the overall prediction for that branch is MM (minute maid orange juice). Furthermore, 29.63% of the observations in the branch are CH and 70.37% are MM. 
+```{r}
+tree_oj
+```
+d) The most important indicator seems to be loyalty, as the first branch differentiates between loyalty to CH of < 0.5036 or greater than. You can see all split criteria and the 8 terminal nodes. 
+```{r}
+plot(tree_oj)
+text(tree_oj, pretty = 0)
+```
+e) The test accuracy rate is 81.48% and the test error rate is 18.52%. 
+```{r}
+set.seed(123)
+oj_train_index <- sample(1:nrow(OJ), 800)
+oj_train <- OJ[oj_train_index, ]
+oj_test <- OJ[-oj_train_index, ]
+tree_pred_oj <- predict(tree_oj, newdata = oj_test, type = "class")
+table(tree_pred_oj, oj_test$Purchase)
+oj_test_acc <- ((150 + 70) / 270) * 100
+cat("Test accuracy rate:", oj_test_acc, "%", "\n")
+oj_test_err <- 100 - oj_test_acc
+cat("Test error rate:", oj_test_err, "%", "\n")
+```
+f) Here is a cv tree. 
+```{r}
+set.seed(123)
+cv_oj <- cv.tree(tree_oj, FUN = prune.misclass)
+names(cv_oj)
+cv_oj
+```
+g) Here is a plot - the best tree size is 5. 
+```{r}
+par(mfrow = c(1,2))
+plot(cv_oj$size, cv_oj$dev, type = "b")
+plot(cv_oj$k, cv_oj$dev, type = "b")
+```
+h) A tree size of 5 seems to perform the best. It looks like a tree size of 8 would also perform well, but not by much more than 5 so I would rather keep the model more simple and understandable. 
+i) Here is a pruned tree with the optimal tree size of 5. 
+```{r}
+prune_oj <- prune.misclass(tree_oj, best = 5)
+plot(prune_carseats)
+text(prune_carseats, pretty = 0)
+```
+j) The misclassification error (training set error) of the pruned model is exactly the same as with the original model at 16.5%. 
+```{r}
+summary(prune_oj)
+```
+k) The test error rates are also exactly the same at 18.52%. 
+```{r}
+tree_pred_oj_cv <- predict(prune_oj, oj_test, type = "class")
+table(tree_pred_oj_cv, oj_test$Purchase)
+oj_cv_test_acc <- ((150 + 70) / 270) * 100
+cat("Test accuracy rate:", oj_cv_test_acc, "%", "\n")
+oj_cv_test_err <- 100 - oj_cv_test_acc
+cat("Test error rate:", oj_cv_test_err, "%", "\n")
+```
+
+
+# Question 10
+a) Removing rows with unknown salaries, and log transforming salaries
+```{r}
+Hitters <- na.omit(Hitters)
+Hitters$Salary <- log(Hitters$Salary)
+```
+b) Creating a training and test set
+```{r}
+hitters_train <- Hitters[1:200, ]
+hitters_test <- Hitters[201:nrow(Hitters), ]
+```
+c) A range of trees with boosting on the training set
+```{r}
+set.seed(123)
+shrinkage_values <- c(0.001, 0.01, 0.1, 0.2, 0.5, 0.8, 1)
+results <- data.frame(shrinkage = shrinkage_values, MSE = numeric(length(shrinkage_values)))
+
+for (i in seq_along(shrinkage_values)) {
+  boost_hitters <- gbm(Salary ~ ., data = hitters_train, distribution = "gaussian",
+                     n.trees = 1000, shrinkage = shrinkage_values[i])
+  predictions <- predict(boost_hitters, hitters_train, n.trees = 1000)
+  mse <- mean((exp(predictions) - exp(hitters_train$Salary))^2)  # Back-transform from log scale
+  results$MSE[i] <- mse
+}
+```
+d) Here is a plot with shrinkage values on the x-axis and test MSE on the y-axis. The higher the shrinkage value, the lower the training set MSE. 
+```{r}
+plot(results$shrinkage, results$MSE, type = "b", xlab = "Shrinkage", ylab = "Training Set MSE")
+```
+e) The PCR model has the lowest MSE, followed by the linear model and then the boosted model. 
+```{r}
+set.seed(123)
+# Boosting model
+pred_boost_hitters <- predict(boost_hitters, newdata = hitters_test, n.trees = 1000, shrinkage = 1.0)
+mse_boost_hitters <- mean((exp(pred_boost_hitters) - exp(hitters_test$Salary))^2)  # Back-transform from log scale
+cat("Boosting Model Test MSE:", mse_boost_hitters, "\n")
+
+# Linear model
+hitters_lm <- lm(Salary ~ ., data = hitters_train)
+pred_hitters_lm <- predict(hitters_lm, newdata = hitters_test)
+mse_hitters_lm <- mean((exp(pred_hitters_lm) - exp(hitters_test$Salary))^2)  # Back-transform from log scale
+cat("Linear Model Test MSE:", mse_hitters_lm, "\n")
+
+# PCR model
+hitters_pcr <- pcr(Salary ~ ., data = hitters_train, scale = TRUE, validation = "CV")
+validationplot(hitters_pcr, val.type = "MSEP")
+# 6 variables seems to have the lowest MSEP
+hitters_pcr_pred <- predict(hitters_pcr, hitters_test, ncomp = 6)
+mse_hitters_pcr <- mean((exp(hitters_pcr_pred) - exp(hitters_test$Salary))^2)  # Back-transform from log scale
+cat("PCR Model Test MSE:", mse_hitters_pcr, "\n")
+```
+f) The number of times at bat (CAtBat) is the most influential, followed by the number of put outs (PutOuts). 
+```{r}
+summary(boost_hitters)
+```
+g) The bagged model MSE is the best by far, at almost half of the PCR model MSE. 
+```{r}
+set.seed(123)
+bag_hitters <- randomForest(Salary ~ ., data = hitters_train, mtry = 19, importance = TRUE)
+bag_hitters
+yhat_bag_hitters <- predict(bag_hitters, newdata = hitters_test)
+mse_hitters_bag <- mean((exp(yhat_bag_hitters) - exp(hitters_test$Salary))^2)  # Back-transform from log scale
+cat("Bagged Model Test MSE:", mse_hitters_bag, "\n")
+```
+
