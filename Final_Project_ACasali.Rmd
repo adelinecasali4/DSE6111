@@ -335,4 +335,337 @@ classification_table
 ```
 
 
-# Section 2: What indicators can be used to monitor for HIV response in children and adolescents? 
+# Section 2: What indicators can be used to predict HIV rates? 
+
+**Loading data and packages**
+```{r}
+library(readxl)
+library(tidyverse)
+library(boot)
+library(pls)
+library(corrplot)
+library(leaps)
+library(glmnet)
+library(tree)
+library(randomForest)
+library(gbm)
+library(kableExtra)
+library(tidyverse)
+hiv_df <- read_xlsx("Data/HIV_Data.xlsx")
+```
+**Data Tidying**   
+Cleaned and formatted data, and used bootstrapping to generate additional observations. 
+```{r}
+# Remove male and female (only interested in total)
+hiv_df <- subset(hiv_df, !(Sex %in% c("Male", "Female")))
+hiv_df <- hiv_df[ , -3]
+
+# Pivot from long to wide format
+hiv_df <- pivot_wider(
+  data = hiv_df,
+  names_from = c(Indicator),  # Specify the columns to pivot
+  values_from = c(OBS_VALUE),              # Specify the values column
+  names_sep = "_"
+)
+hiv_df <- hiv_df[ , -13]
+
+# Change column names
+colnames(hiv_df) <- c("country", "year", "infant_mortality_rate", "fertility_rate", "life_exp", "pop_growth_rate", "urban_pop", "youth_literacy_rate", "aids_death_rate", "hiv_infection_rate", "mother_child_hiv_transmis_rate", "per_child_under_poverty")
+
+# Interpolate missing values for years based on other years for that country
+hiv_df <- hiv_df %>%
+  group_by(country) %>%
+  fill(c(pop_growth_rate, youth_literacy_rate, per_child_under_poverty), .direction = "updown") %>%
+  ungroup()
+
+# Convert to numeric columns
+hiv_df <- hiv_df %>%
+  unnest_wider(infant_mortality_rate, names_sep = "_") %>%
+  unnest_wider(fertility_rate, names_sep = "_") %>%
+  unnest_wider(life_exp, names_sep = "_") %>%
+  unnest_wider(pop_growth_rate, names_sep = "_") %>%
+  unnest_wider(urban_pop, names_sep = "_") %>%
+  unnest_wider(youth_literacy_rate, names_sep = "_") %>%
+  unnest_wider(aids_death_rate, names_sep = "_") %>%
+  unnest_wider(hiv_infection_rate, names_sep = "_") %>%
+  unnest_wider(mother_child_hiv_transmis_rate, names_sep = "_") %>%
+  unnest_wider(per_child_under_poverty, names_sep = "_") %>%
+  mutate(across(-c(country, year), ~as.numeric(as.character(.))))
+hiv_df <- hiv_df[ , -c(4, 5, 7, 9, 11)]
+colnames(hiv_df) <- c("country", "year", "infant_mortality_rate", "fertility_rate", "life_exp", "pop_growth_rate", "urban_pop", "youth_literacy_rate", "aids_death_rate", "hiv_infection_rate", "mother_child_hiv_transmis_rate", "per_child_under_poverty")
+
+# Check for NA values
+colSums(is.na(hiv_df))
+hiv_df <- na.omit(hiv_df)
+
+# Use bootstrapping to expand the dataset to 1000 observations
+set.seed(123)
+generate_boot_dataset <- function(data) {
+  boot_indices <- sample(nrow(data), replace = TRUE)
+  boot_data <- data[boot_indices, ]
+  return(boot_data)
+}
+num_bootstrap_samples <- ceiling(1000 / nrow(hiv_df))
+boot_datasets <- lapply(1:num_bootstrap_samples, function(i) generate_boot_dataset(hiv_df))
+hiv_df_boot <- do.call(rbind, boot_datasets)
+```
+**Data Exploration**   
+Colinearity is present between multiple variables (infant_mortality_rate, fertility_rate, life_exp, pop_growth_rate, and youth_literacy_rate all seem to be correlated). This is something to keep in mind during the evaluation of models. 
+```{r}
+# View the dataset and summary statistics
+head(hiv_df_boot)
+summary(hiv_df_boot)
+str(hiv_df_boot)
+dim(hiv_df_boot)
+names(hiv_df_boot)
+
+# Check for correlated variables
+cor_matrix <- cor(hiv_df_boot[, c(3:12)])
+corrplot(cor_matrix, method = "color", tl.col = "black", tl.srt = 45)
+title("Correlation Heatmap")
+cor_matrix_filtered <- cor_matrix
+cor_matrix_filtered[abs(cor_matrix) <= 0.7] <- NA
+print(cor_matrix_filtered)
+```
+**Best Subset Selection**   
+The model created using best subset selection determined the model with the lowest MSE is one that contains 6 predictors (infant_mortality_rate, fertility_rate, youth_literacy_rate, aids_death_rate, mother_child_hiv_transmis_rate, and per_child_under_poverty) with an MSE of 1.116785 and an adjusted R-squared value of 0.778. 
+```{r}
+# Creating a training and testing set
+set.seed(123) 
+train_hiv <- sample(c(TRUE, FALSE), nrow(hiv_df_boot), replace = TRUE)
+test_hiv <- (!train_hiv)
+
+# Creating the model
+best_subset_hiv <- regsubsets(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot[train_hiv, ], nvmax = 9)
+best_summary <- summary(best_subset_hiv)
+best_summary
+
+# Testing and determining the best model
+test_mat_best <- model.matrix(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot[test_hiv, ])
+val.errors <- rep(NA, 9)
+for (i in 1:9) {
+  coefi <- coef(best_subset_hiv, id = i)
+  pred <- test_mat_best[, names(coefi)] %*% coefi
+  val.errors[i] <- mean((hiv_df_boot$hiv_infection_rate[test_hiv] - pred)^2)
+}
+val.errors
+which.min(val.errors)
+coef(best_subset_hiv, 6)
+cat("Adjusted RSq:", best_summary$rsq[6], "\n")
+cat("MSE:", val.errors[6], "\n")
+```
+**Forward Stepwise Selection**    
+The best model created with forward stepwise selection contains the same 6 predictors as the best subset selection model, with the same MSE of 1.116785 and adjusted R-squared value of 0.778.
+```{r}
+forward_subset_hiv <- regsubsets(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot[train_hiv, ], nvmax = 9, method = "forward")
+forward_summary <- summary(forward_subset_hiv)
+forward_summary
+
+# Testing and determining the best model
+test_mat_forward <- model.matrix(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot[test_hiv, ], method = "forward")
+val.errors2 <- rep(NA, 9)
+for (i in 1:9) {
+  coefi <- coef(forward_subset_hiv, id = i)
+  pred <- test_mat_forward[, names(coefi)] %*% coefi
+  val.errors2[i] <- mean((hiv_df_boot$hiv_infection_rate[test_hiv] - pred)^2)
+}
+val.errors2
+which.min(val.errors2)
+coef(forward_subset_hiv, 6)
+cat("Adjusted RSq:", forward_summary$rsq[6], "\n")
+cat("MSE:", val.errors2[6], "\n")
+```
+**Backward Stepwise Selection**    
+The best model created with backward stepwise selection contains the same 6 predictors as the best subset selection model, with the same MSE of 1.116785 and adjusted R-squared value of 0.778.
+```{r}
+backward_subset_hiv <- regsubsets(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot[train_hiv, ], nvmax = 9, method = "backward")
+backward_summary <- summary(backward_subset_hiv)
+backward_summary
+
+# Testing and determining the best model
+test_mat_backward <- model.matrix(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot[test_hiv, ], method = "backward")
+val.errors3 <- rep(NA, 9)
+for (i in 1:9) {
+  coefi <- coef(forward_subset_hiv, id = i)
+  pred <- test_mat_backward[, names(coefi)] %*% coefi
+  val.errors3[i] <- mean((hiv_df_boot$hiv_infection_rate[test_hiv] - pred)^2)
+}
+val.errors3
+which.min(val.errors3)
+coef(forward_subset_hiv, 6)
+cat("Adjusted RSq:", backward_summary$rsq[6], "\n")
+cat("MSE:", val.errors3[6], "\n")
+```
+**Ridge Regression**    
+The model created with ridge regression has an MSE of 1.655353. 
+```{r}
+# Creating x and y vectors
+x <- model.matrix(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, hiv_df_boot)[, -1]
+y <- hiv_df_boot$hiv_infection_rate
+
+# Creating test and training sets
+set.seed(123)
+train <- sample(1:nrow(x), nrow(x) / 2)
+test <- (-train)
+y.test <- y[test]
+
+# Creating the model
+grid <- 10^seq(10, -2, length = 100)
+ridge_hiv <- glmnet(x[train, ], y[train], alpha = 0, lambda = grid)
+plot(ridge_hiv)
+
+# Determing the best lambda value
+set.seed(123)
+cv_out <- cv.glmnet(x[train, ], y[train], alpha = 0)
+plot(cv_out)
+bestlam_ridge <- cv_out$lambda.min
+bestlam_ridge
+
+# Testing the model and calculating MSE
+ridge_pred_hiv <- predict(ridge_hiv, s = bestlam_ridge, newx = x[test, ])
+out <- glmnet(x, y, alpha = 0)
+predict(out, type = "coefficients", s = bestlam_ridge)[1:10, ]
+cat("MSE:", mean((ridge_pred_hiv - y.test)^2), "\n")
+```
+**Lasso**    
+The model created with the lasso method has an MSE of 1.586618. 
+```{r}
+# Creating the model
+lasso_hiv <- glmnet(x[train, ], y[train], alpha = 1, lambda = grid)
+plot(lasso_hiv)
+
+# Determining the best lambda value
+set.seed(123)
+cv_out2 <- cv.glmnet(x[train, ], y[train], alpha = 1)
+plot(cv_out2)
+bestlam_lasso <- cv_out2$lambda.min
+bestlam_lasso
+
+# Testing the model and calculating MSE
+lasso_pred_hiv <- predict(lasso_hiv, s = bestlam_lasso, newx = x[test, ])
+out2 <- glmnet(x, y, alpha = 1)
+predict(out2, type = "coefficients", s = bestlam_lasso)[1:10, ]
+cat("MSE:", mean((lasso_pred_hiv - y.test)^2), "\n")
+```
+**Partial Least Squares (PLS)**    
+The model created with the partial least squares method has an MSE of 1.587266. 
+```{r}
+# Creating the model
+set.seed(123)
+pls_hiv <- plsr(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot, subset = train, scale = TRUE, validation = "CV")
+summary(pls_hiv)
+
+# Determining the best M value and calculating MSE
+validationplot(pls_hiv, val.type = "MSEP")
+# The lowest cross-validation error occurs when M = 5 partial least squares directions are used. 
+pls_pred_hiv <- predict(pls_hiv, x[test, ], ncomp = 5)
+pls_fit_hiv <- plsr(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot, subset = train, scale = TRUE, ncomp = 5)
+summary(pls_fit_hiv)
+coef(pls_fit_hiv)
+cat("MSE:", mean((pls_pred_hiv - y.test)^2), "\n")
+```
+**Regression Tree**    
+The regression tree created with cross validation has an MSE of 0.8744749.
+```{r}
+# Creating a training data set
+set.seed(123)
+train <- sample(1:nrow(hiv_df_boot), nrow(hiv_df_boot) / 2)
+
+# Creating the model
+tree_hiv <- tree(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, hiv_df_boot, subset = train)
+summary(tree_hiv)
+plot(tree_hiv)
+text(tree_hiv, pretty = 0)
+
+# Prune the tree with cross validation
+cv_hiv <- cv.tree(tree_hiv)
+cv_hiv
+plot(cv_hiv$size, cv_hiv$dev, type = "b")
+# The best number of terminal nodes was already selected by the unpruned tree, at 5.
+yhat <- predict(tree_hiv, newdata = hiv_df_boot[-train, ])
+hiv_test <- unlist(hiv_df_boot[-train, "hiv_infection_rate"])
+cat("MSE:", mean((yhat - hiv_test)^2), "\n")
+```
+**Bagging**    
+The regression tree created with bagging has an MSE of 0.07755276. 
+```{r}
+# Creating the model
+set.seed(123)
+bag_hiv <- randomForest(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot, subset = train, mtry = 9, importance = TRUE)
+bag_hiv
+importance(bag_hiv)
+
+# Testing the model and calculating MSE
+yhat_bag <- predict(bag_hiv, newdata = hiv_df_boot[-train, ])
+cat("MSE:", mean((yhat_bag - hiv_test)^2), "\n")
+```
+**Random Forests**    
+The regression tree created with random forests has an MSE of 0.118209.
+```{r}
+# Creating the model
+set.seed(123)
+rf_hiv <- randomForest(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot, subset = train, mtry = 3, importance = TRUE)
+rf_hiv
+importance(rf_hiv)
+
+# Testing the model and calculating MSE
+yhat_rf <- predict(rf_hiv, newdata = hiv_df_boot[-train, ])
+cat("MSE:", mean((yhat_rf - hiv_test)^2), "\n")
+```
+**Boosting**    
+The regression tree created with boosting has an MSE of 0.1268387.
+```{r}
+# Creating the model
+set.seed(123)
+boost_hiv <- gbm(hiv_infection_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + aids_death_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot[train, ], distribution = "gaussian", n.trees = 5000, interaction.depth = 4)
+summary(boost_hiv)
+
+# Testing the model and calculating the MSE
+yhat_boost <- predict(boost_hiv, newdata = hiv_df_boot[-train, ], n.trees = 5000)
+cat("MSE:", mean((yhat_boost - hiv_test)^2), "\n")
+```
+**Overview of Models**   
+
+```{r}
+# Table with models and relative MSEs
+quantitative_overview <- data.frame(
+  Method = c("Best Subset", "Forward Selection", "Backward Selection", "Ridge Regression", "Lasso", "PLS", "Regression Tree", "Bagging", "Random Forests", "Boosting"), 
+  MSE = c(1.116786, 1.116785, 1.116785, 1.655353, 1.586618, 1.587266, 0.8744749, 0.07755276, 0.118209, 0.1268387)
+)
+quantitative_table <- kable(quantitative_overview, "markdown") %>% 
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1, bold = TRUE)
+quantitative_table
+```
+
+
+# Section 3: How can the indicators be used to predict AIDS deaths? 
+
+**Principal Components Regression**    
+A PCR model on the data has an MSE of 52.88973, and explains 84.87% of the variance.
+```{r}
+# Creating x and y vectors
+x <- model.matrix(aids_death_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + hiv_infection_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, hiv_df_boot)[, -1]
+y <- hiv_df_boot$aids_death_rate
+
+# Creating test and training sets
+set.seed(123)
+train <- sample(1:nrow(x), nrow(x) / 2)
+test <- (-train)
+y.test <- y[test]
+
+# Creating the model
+set.seed(123)
+pcr_aids <- pcr(aids_death_rate ~ infant_mortality_rate + fertility_rate + life_exp + pop_growth_rate + urban_pop + youth_literacy_rate + hiv_infection_rate + mother_child_hiv_transmis_rate + per_child_under_poverty, data = hiv_df_boot, scale = TRUE, validation = "CV")
+summary(pcr_aids)
+
+# Determining the best M value and calculating MSE
+validationplot(pcr_aids, val.type = "MSEP")
+# The lowest cross-validation error occurs when M = 5 partial least squares directions are used. 
+pcr_pred_aids <- predict(pcr_aids, x[test, ], ncomp = 5)
+pcr_fit_aids <- pcr(y ~ x, scale = TRUE, ncomp = 5)
+summary(pcr_fit_aids)
+coef(pcr_fit_aids)
+cat("MSE:", mean((pcr_pred_aids - y.test)^2), "\n")
+```
+
