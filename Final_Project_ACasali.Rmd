@@ -367,7 +367,7 @@ hiv_df <- read_xlsx("Data/HIV_Data.xlsx")
 **Data Tidying**   
 Cleaned and formatted data, and used bootstrapping to generate additional observations. 
 ```{r}
-# Remove male and female (only interested in total)
+# Remove male and female (only interested in total due to missing values)
 hiv_df <- subset(hiv_df, !(Sex %in% c("Male", "Female")))
 hiv_df <- hiv_df[ , -3]
 
