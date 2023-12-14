@@ -19,6 +19,8 @@ library(tree)
 library(randomForest)
 library(gbm)
 library(kableExtra)
+library(coefplot)
+library(class)
 ```
 **Data exploration and tidying**   
 The only predictors that have a correlation stronger than 0.5 are physical health and general health with a correlation of 0.52. 
@@ -29,6 +31,9 @@ summary(heart_df)
 str(heart_df)
 dim(heart_df)
 names(heart_df)
+
+# Check for missing values
+sum(is.na(heart_df))
 
 # Check for correlated variables
 cor_matrix <- cor(heart_df)
@@ -43,7 +48,7 @@ print(cor_matrix_filtered)
 heart_df$HeartDiseaseorAttack <- as.factor(heart_df$HeartDiseaseorAttack)
 ```
 **Logistic Regression**    
-The linear model with all predictors shows that the variables HighBP, HighChol, CholCheck, Smoker, Stroke, Diabetes, HvyAlcoholConsump, NoDocbcCost, GenHlth, DiffWalk, Sex, Age, and Income were the most significant predictors, followed by PhysActivity, Veggies, and MentHlth. The model created with all of the significant predictors has an accuracy of 89.78%, and the model created with only the most significant predictors has the same accuracy of 89.78%. 
+The logistic regression model with all predictors shows that the variables HighBP, HighChol, CholCheck, Smoker, Stroke, Diabetes, HvyAlcoholConsump, NoDocbcCost, GenHlth, DiffWalk, Sex, Age, and Income were the most significant predictors, followed by PhysActivity, Veggies, and MentHlth. The model created with all of the significant predictors has an accuracy of 89.78%, and the model created with only the most significant predictors has the same accuracy of 89.78%. 
 ```{r}
 # Null model
 heart_lm_null <- glm(HeartDiseaseorAttack ~ HeartDiseaseorAttack, data = heart_df, family = binomial)
@@ -62,6 +67,10 @@ heart_test <- anti_join(heart_df, heart_train)
 # Model with significant predictors
 heart_lm_sig <- glm(HeartDiseaseorAttack ~ HighBP + HighChol + CholCheck + Smoker + Stroke + Diabetes + HvyAlcoholConsump + NoDocbcCost + GenHlth + DiffWalk + Sex + Age + Income + PhysActivity + Veggies + MentHlth, data = heart_train, family = binomial)
 summary(heart_lm_sig)
+Coefficient <- coef(heart_lm_sig)
+coefficients_df <- as.data.frame(Coefficient)
+sig_coefficients_table <- kable(coefficients_df, format = "markdown")
+print(sig_coefficients_table)
 
 # Test the model and calculate accuracy
 predict_lm <- predict(heart_lm_sig, newdata = heart_test)
@@ -81,6 +90,7 @@ cat("Error Rate:", error_lm, "\n")
 # Model with only the most significant predictors
 heart_lm_sig2 <- glm(HeartDiseaseorAttack ~ HighBP + HighChol + CholCheck + Smoker + Stroke + Diabetes + HvyAlcoholConsump + NoDocbcCost + GenHlth + DiffWalk + Sex + Age + Income, data = heart_train, family = binomial)
 summary(heart_lm_sig2)
+coef(heart_lm_sig2)
 
 # Test the second model and calculate accuracy
 predict_lm2 <- predict(heart_lm_sig2, newdata = heart_test)
@@ -124,6 +134,7 @@ The QDA model containing all significant predictors has an accuracy of 83.25%.
 # Model with significant predictors
 heart_qda <- qda(HeartDiseaseorAttack ~ HighBP + HighChol + CholCheck + Smoker + Stroke + Diabetes + HvyAlcoholConsump + NoDocbcCost + GenHlth + DiffWalk + Sex + Age + Income + PhysActivity + Veggies + MentHlth, data = heart_train)
 heart_qda
+heart_qda$scaling
 
 # Test the model and calculate accuracy
 qda_predictions <- predict(heart_qda, newdata = heart_test)$class
@@ -343,7 +354,6 @@ library(readxl)
 library(tidyverse)
 library(boot)
 library(pls)
-library(corrplot)
 library(leaps)
 library(glmnet)
 library(tree)
@@ -351,6 +361,7 @@ library(randomForest)
 library(gbm)
 library(kableExtra)
 library(tidyverse)
+library(corrplot)
 hiv_df <- read_xlsx("Data/HIV_Data.xlsx")
 ```
 **Data Tidying**   
